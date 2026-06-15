@@ -36,11 +36,38 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             conversation = JSON.parse(savedChat);
             if (conversation.length > 0) {
-                welcomeContainer.classList.add("hidden");
-                conversation.forEach(msg => {
-                    renderMessage(msg.role, msg.content, false);
-                });
-                scrollToBottom();
+                // Check if the session still exists on the server
+                fetch(`/api/chat/check?threadId=${threadId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.exists === false) {
+                            // Cache was cleared on server (e.g. server off/restarted), sync frontend
+                            console.log("Server session cache not found. Clearing frontend cache.");
+                            conversation = [];
+                            localStorage.removeItem("chat_history");
+
+                            // Regenerate thread ID
+                            threadId = "thread_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                            localStorage.setItem("chat_thread_id", threadId);
+
+                            welcomeContainer.classList.remove("hidden");
+                            chatStatusText.textContent = "Session expired. History cleared.";
+                        } else {
+                            welcomeContainer.classList.add("hidden");
+                            conversation.forEach(msg => {
+                                renderMessage(msg.role, msg.content, false);
+                            });
+                            scrollToBottom();
+                        }
+                    })
+                    .catch(err => {
+                        console.warn("Unable to verify session with server, rendering offline history:", err);
+                        welcomeContainer.classList.add("hidden");
+                        conversation.forEach(msg => {
+                            renderMessage(msg.role, msg.content, false);
+                        });
+                        scrollToBottom();
+                    });
             }
         } catch (e) {
             console.error("Failed to parse saved chat history", e);
@@ -150,7 +177,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ message: message, threadId: threadId })
+                body: JSON.stringify({ 
+                    message: message, 
+                    threadId: threadId,
+                    hasHistory: conversation.length > 1
+                })
             });
 
             const data = await response.json();
@@ -165,10 +196,19 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 const errorMessage = data.error || "Failed to fetch response from server.";
                 const errorCode = data.code || "unknown";
+
+                if (errorCode === "session_expired") {
+                    // Cache was cleared on server, sync frontend cache
+                    conversation = [];
+                    localStorage.removeItem("chat_history");
+                    threadId = "thread_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                    localStorage.setItem("chat_thread_id", threadId);
+                }
+
                 renderErrorMessage(
-                    errorCode === "request_too_large" ? "Token Limit Exceeded" : "Error Encountered",
+                    errorCode === "session_expired" ? "Session Expired" : (errorCode === "request_too_large" ? "Token Limit Exceeded" : "Error Encountered"),
                     errorMessage,
-                    errorCode === "request_too_large"
+                    errorCode === "session_expired" || errorCode === "request_too_large"
                 );
                 chatStatusText.textContent = "Error occurred";
             }

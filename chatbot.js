@@ -22,12 +22,13 @@ async function webSearch({ query }) {
     return response.results.map(results => results.content).join("\n\n")
 }
 
-export async function generate(userMessage, threadId) {
+export async function generate(userMessage, threadId, hasHistory) {
 
     let messages = myCache.get(threadId);
 
-    console.log({ messages });
-
+    if (!messages && hasHistory) {
+        throw new Error("Session expired. Please clear the chat history.");
+    }
 
     if (!messages) {
         messages = [
@@ -111,4 +112,8 @@ export function clearSession(threadId) {
     if (threadId) {
         myCache.del(threadId);
     }
+}
+
+export function hasSession(threadId) {
+    return threadId ? myCache.has(threadId) : false;
 }
