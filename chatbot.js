@@ -26,6 +26,9 @@ export async function generate(userMessage, threadId) {
 
     let messages = myCache.get(threadId);
 
+    console.log({ messages });
+
+
     if (!messages) {
         messages = [
             {
@@ -45,7 +48,9 @@ export async function generate(userMessage, threadId) {
         content: userMessage
     });
 
-    while (true) {
+    const MAX_RETRIES = 10;
+
+    for (let i = 0; i < MAX_RETRIES; i++) {
         const completion = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
             temperature: 0,
