@@ -34,12 +34,7 @@ export async function generate(userMessage, threadId, hasHistory) {
         messages = [
             {
                 role: 'system',
-                content: `Today's date time is ${new Date().toLocaleString()}. For the latest or real-time information, call the webSearch tool.
-                        Example:
-                        User: "What is the weather today in Tokyo?"
-                        Tool Call: webSearch({ query: "Tokyo weather 2026-06-15" })
-                        Tool Output: "Sunny, 22°C"
-                        Assistant: "The weather in Tokyo today is sunny and 22°C."`
+                content: `Today's date time is ${new Date().toLocaleString()}. For the latest or real-time information, call the webSearch tool.`
             }
         ];
     }
@@ -77,7 +72,6 @@ export async function generate(userMessage, threadId, hasHistory) {
             ],
             tool_choice: 'auto'
         });
-
 
         messages.push(completion.choices[0].message)
 
