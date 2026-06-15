@@ -3,6 +3,7 @@
 
 import Groq from "groq-sdk";
 import { tavily } from "@tavily/core";
+import NodeCache from "node-cache";
 
 const tvly = tavily({
     apiKey: process.env.TAVILY_API_KEY,
@@ -11,23 +12,38 @@ const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY,
 });
 
+const myCache = new NodeCache({
+    stdTTL: 60 * 60 * 24
+})
+
 async function webSearch({ query }) {
     const response = await tvly.search(query);
 
     return response.results.map(results => results.content).join("\n\n")
 }
 
-export async function generate(userMessage) {
+export async function generate(userMessage, threadId) {
 
-    const messages = [
-        {
-            role: 'system',
-            content: `For latest information call webSearch tool`
-        }, {
-            role: 'user',
-            content: userMessage
-        }
-    ]
+    let messages = myCache.get(threadId);
+
+    if (!messages) {
+        messages = [
+            {
+                role: 'system',
+                content: `Today's date time is ${new Date().toLocaleString()}. For the latest or real-time information, call the webSearch tool.
+                        Example:
+                        User: "What is the weather today in Tokyo?"
+                        Tool Call: webSearch({ query: "Tokyo weather 2026-06-15" })
+                        Tool Output: "Sunny, 22°C"
+                        Assistant: "The weather in Tokyo today is sunny and 22°C."`
+            }
+        ];
+    }
+
+    messages.push({
+        role: 'user',
+        content: userMessage
+    });
 
     while (true) {
         const completion = await groq.chat.completions.create({
@@ -62,6 +78,7 @@ export async function generate(userMessage) {
         const toolCalls = completion.choices[0].message.tool_calls;
 
         if (!toolCalls) {
+            myCache.set(threadId, messages)
             return completion.choices[0].message.content
         }
 
@@ -83,4 +100,10 @@ export async function generate(userMessage) {
 
     }
 
+}
+
+export function clearSession(threadId) {
+    if (threadId) {
+        myCache.del(threadId);
+    }
 }

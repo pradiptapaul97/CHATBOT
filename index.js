@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from "express";
-import { generate } from "./chatbot.js";
+import { generate, clearSession } from "./chatbot.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,11 +12,11 @@ app.use(express.static("public"));
 // Chat API Endpoint
 app.post("/api/chat", async (req, res) => {
     try {
-        const { message } = req.body;
+        const { message, threadId } = req.body;
         if (!message) {
             return res.status(400).json({ error: "Message is required" });
         }
-        const botResponse = await generate(message);
+        const botResponse = await generate(message, threadId);
 
         res.json({ response: botResponse });
     } catch (error) {
@@ -38,6 +38,20 @@ app.post("/api/chat", async (req, res) => {
             error: clientMessage,
             code: errorCode
         });
+    }
+});
+
+// Clear Cache API Endpoint
+app.post("/api/chat/clear", async (req, res) => {
+    try {
+        const { threadId } = req.body;
+        if (threadId) {
+            clearSession(threadId);
+        }
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Error in clear route:", error);
+        res.status(500).json({ error: "Failed to clear session cache" });
     }
 });
 

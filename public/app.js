@@ -19,6 +19,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // Chat History State
     let conversation = [];
 
+    // Retrieve or generate unique thread ID for backend conversation cache
+    let threadId = localStorage.getItem("chat_thread_id");
+    if (!threadId) {
+        threadId = "thread_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem("chat_thread_id", threadId);
+    }
+
     // Initialize Theme
     const savedTheme = localStorage.getItem("theme") || "dark-theme";
     document.body.className = savedTheme;
@@ -59,10 +66,16 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Clear Chat Handler
-    clearChatBtn.addEventListener("click", () => {
+    clearChatBtn.addEventListener("click", async () => {
         if (confirm("Are you sure you want to clear the conversation history?")) {
+            const oldThreadId = threadId;
+
             conversation = [];
             localStorage.removeItem("chat_history");
+
+            // Regenerate thread ID to reset backend cache history
+            threadId = "thread_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            localStorage.setItem("chat_thread_id", threadId);
 
             // Remove all message rows, keep welcome box
             const messageRows = chatHistory.querySelectorAll(".message-row");
@@ -70,6 +83,19 @@ document.addEventListener("DOMContentLoaded", () => {
             welcomeContainer.classList.remove("hidden");
             chatStatusText.textContent = "Ready for your prompt";
             scrollToBottom();
+
+            // Notify backend to clear server-side cache for this session
+            try {
+                await fetch("/api/chat/clear", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ threadId: oldThreadId })
+                });
+            } catch (err) {
+                console.error("Failed to clear backend cache:", err);
+            }
         }
     });
 
@@ -124,7 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ message: message })
+                body: JSON.stringify({ message: message, threadId: threadId })
             });
 
             const data = await response.json();
